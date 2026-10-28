@@ -3,13 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>レジギガス - 大学祭POSレジ</title>
+    <title>レジギガス - 大学祭POSレジ (Firebaseリアルタイム同期版)</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Firebase SDK (v9 Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;800;900&family=Noto+Sans+JP:wght@500;700;900&display=swap');
 
@@ -42,7 +47,10 @@
                     <h1 class="font-black text-base sm:text-lg tracking-wider text-amber-400 flex items-center gap-1.5 leading-none">
                         レジギガス <span class="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded-full font-bold">POS</span>
                     </h1>
-                    <p class="text-[10px] text-amber-300 font-bold" id="current-day-label">テスト日程 営業中</p>
+                    <div class="flex items-center gap-2">
+                        <p class="text-[10px] text-amber-300 font-bold" id="current-day-label">🧪 テスト日程 営業中</p>
+                        <span id="sync-status" class="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-1.5 rounded font-mono">🔄 リアルタイム同期中</span>
+                    </div>
                 </div>
             </div>
 
@@ -58,12 +66,9 @@
     <!-- Main Dynamic Tab Container -->
     <main class="flex-1 relative overflow-hidden flex flex-col">
 
-        <!-- ==================== TAB 1: POS REGISTER ==================== -->
+        <!-- TAB 1: POS REGISTER -->
         <section id="tab-pos" class="h-full flex flex-col md:flex-row overflow-hidden relative">
-            
-            <!-- Products Side -->
-             <div class="flex-1 flex flex-col h-full overflow-hidden bg-slate-100">
-                <!-- Category Tabs -->
+            <div class="flex-1 flex flex-col h-full overflow-hidden bg-slate-100">
                 <div class="p-2.5 bg-white shadow-sm flex gap-2 overflow-x-auto no-scrollbar border-b border-slate-200">
                     <button onclick="filterCat('ALL')" class="cat-btn px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black whitespace-nowrap bg-amber-500 text-slate-950 shadow-sm active-scale">すべて</button>
                     <button onclick="filterCat('ドーナツ')" class="cat-btn px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black whitespace-nowrap bg-slate-100 text-slate-600 hover:bg-slate-200 active-scale">🍩 ドーナツ</button>
@@ -71,9 +76,7 @@
                     <button onclick="filterCat('テスト')" class="cat-btn px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black whitespace-nowrap bg-slate-100 text-slate-600 hover:bg-slate-200 active-scale">📝 テスト・模試</button>
                 </div>
 
-                <!-- Product Grid -->
-                <div id="product-grid" class="flex-1 overflow-y-auto p-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 pb-24 md:pb-4">
-                </div>
+                <div id="product-grid" class="flex-1 overflow-y-auto p-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 pb-24 md:pb-4"></div>
             </div>
 
             <!-- Mobile Sticky Bottom Bar -->
@@ -95,7 +98,6 @@
 
             <!-- Cart Side Panel -->
             <div id="cart-panel" class="fixed inset-0 z-40 bg-white flex flex-col transition-transform duration-300 translate-y-full md:translate-y-0 md:static md:w-[380px] lg:w-[420px] md:border-l md:border-slate-200 md:shadow-xl flex-none">
-
                 <div class="p-3 bg-slate-900 text-white flex justify-between items-center border-b border-slate-800">
                     <div class="flex items-center gap-2">
                         <i data-lucide="shopping-cart" class="w-5 h-5 text-amber-400"></i>
@@ -103,17 +105,12 @@
                         <span id="cart-item-count" class="bg-amber-500 text-slate-950 text-xs px-2 py-0.5 rounded-full font-black">0点</span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <button onclick="clearCart()" class="text-xs text-rose-300 hover:text-rose-100 font-bold px-2 py-1 rounded bg-slate-800 border border-slate-700">
-                            クリア
-                        </button>
-                        <button onclick="toggleMobileCart(false)" class="md:hidden text-slate-400 hover:text-white p-1">
-                            <i data-lucide="x" class="w-6 h-6"></i>
-                        </button>
+                        <button onclick="clearCart()" class="text-xs text-rose-300 hover:text-rose-100 font-bold px-2 py-1 rounded bg-slate-800 border border-slate-700">クリア</button>
+                        <button onclick="toggleMobileCart(false)" class="md:hidden text-slate-400 hover:text-white p-1"><i data-lucide="x" class="w-6 h-6"></i></button>
                     </div>
                 </div>
 
-                <div id="cart-items" class="flex-1 overflow-y-auto p-3 divide-y divide-slate-100">
-                </div>
+                <div id="cart-items" class="flex-1 overflow-y-auto p-3 divide-y divide-slate-100"></div>
 
                 <div class="p-3 bg-slate-50 border-t border-slate-200 space-y-2 pb-safe">
                     <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm space-y-1">
@@ -139,9 +136,7 @@
                                     class="w-full text-right font-black text-lg pl-7 pr-3 py-2 border-2 border-slate-300 rounded-xl focus:border-amber-500 focus:outline-none"
                                     oninput="calculateChange()">
                             </div>
-                            <button onclick="exactAmount()" class="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black text-xs rounded-xl transition active-scale whitespace-nowrap">
-                                ちょうど
-                            </button>
+                            <button onclick="exactAmount()" class="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black text-xs rounded-xl transition active-scale whitespace-nowrap">ちょうど</button>
                         </div>
 
                         <div class="grid grid-cols-3 gap-1.5">
@@ -164,7 +159,7 @@
             </div>
         </section>
 
-        <!-- ==================== TAB 2: KITCHEN ==================== -->
+        <!-- TAB 2: KITCHEN -->
         <section id="tab-kitchen" class="h-full bg-slate-100 p-3 sm:p-5 overflow-y-auto hidden pb-24">
             <div class="max-w-5xl mx-auto space-y-4">
                 <div class="flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
@@ -172,17 +167,16 @@
                         <h2 class="text-lg font-black text-slate-800 flex items-center gap-2">
                             <i data-lucide="chef-hat" class="w-5 h-5 text-amber-500"></i> 調理・注文進行管理
                         </h2>
-                        <p class="text-xs text-slate-500">トッピングの確認と呼び出し状態の切り替え</p>
+                        <p class="text-xs text-slate-500">リアルタイム連動中（複数スマホで自動更新）</p>
                     </div>
                     <span id="kitchen-active-count" class="bg-amber-100 text-amber-800 text-xs px-3 py-1 rounded-full font-bold">0件進行中</span>
                 </div>
 
-                <div id="kitchen-orders-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                </div>
+                <div id="kitchen-orders-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
             </div>
         </section>
 
-        <!-- ==================== TAB 3: DISPLAY ==================== -->
+        <!-- TAB 3: DISPLAY -->
         <section id="tab-display" class="h-full bg-slate-950 text-white p-4 sm:p-6 overflow-y-auto hidden pb-24">
             <div class="max-w-6xl mx-auto space-y-6">
                 <div class="flex justify-between items-center border-b border-slate-800 pb-4">
@@ -217,10 +211,9 @@
             </div>
         </section>
 
-        <!-- ==================== TAB 4: ANALYTICS & CLOSING ==================== -->
+        <!-- TAB 4: ANALYTICS -->
         <section id="tab-analytics" class="h-full bg-slate-100 p-4 sm:p-6 overflow-y-auto hidden pb-24">
             <div class="max-w-5xl mx-auto space-y-5">
-                
                 <div class="bg-slate-900 text-white p-4 rounded-2xl shadow-sm border border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
                         <div class="flex items-center gap-2">
@@ -230,7 +223,6 @@
                         <p class="text-xs text-slate-400 mt-1">選択中の日程の売上分析と精算締めを行います</p>
                     </div>
                     <div class="flex gap-2 w-full sm:w-auto">
-                        <!-- Added Test Day Options -->
                         <select id="day-select" onchange="changeActiveDay(this.value)" class="bg-slate-800 border border-slate-700 text-amber-300 font-bold text-xs rounded-xl px-3 py-2 flex-1 sm:flex-none">
                             <option value="test">🧪 テスト日程 (リハーサル)</option>
                             <option value="1">1日目のデータ</option>
@@ -271,9 +263,7 @@
                 </div>
 
                 <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div class="p-3 bg-slate-50 border-b border-slate-200 font-bold text-xs text-slate-700">
-                        商品別売上ランキング
-                    </div>
+                    <div class="p-3 bg-slate-50 border-b border-slate-200 font-bold text-xs text-slate-700">商品別売上ランキング</div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-xs">
                             <thead class="bg-slate-100 text-slate-500 font-semibold">
@@ -291,10 +281,9 @@
             </div>
         </section>
 
-        <!-- ==================== TAB 5: SETTINGS ==================== -->
+        <!-- TAB 5: SETTINGS -->
         <section id="tab-settings" class="h-full bg-slate-100 p-4 sm:p-6 overflow-y-auto hidden pb-24">
             <div class="max-w-4xl mx-auto space-y-5">
-                
                 <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
                     <h3 class="font-bold text-sm text-slate-800 flex items-center gap-2">
                         <i data-lucide="calculator" class="w-4 h-4 text-amber-500"></i> スタッフ用お釣り電卓アシスト
@@ -317,19 +306,17 @@
 
                 <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
                     <div>
-                        <h4 class="font-bold text-sm text-rose-600">全データリセット</h4>
-                        <p class="text-[11px] text-slate-400">すべての営業日（テスト日程含む）の注文履歴を初期化します</p>
+                        <h4 class="font-bold text-sm text-rose-600">クラウド全データ初期化</h4>
+                        <p class="text-[11px] text-slate-400">Firebase上の全日程注文データをクリアします</p>
                     </div>
-                    <button onclick="resetAllData()" class="bg-rose-600 hover:bg-rose-700 text-white text-xs px-3 py-2 rounded-xl font-bold active-scale">
-                        初期化
-                    </button>
+                    <button onclick="resetAllData()" class="bg-rose-600 hover:bg-rose-700 text-white text-xs px-3 py-2 rounded-xl font-bold active-scale">初期化</button>
                 </div>
             </div>
         </section>
 
     </main>
 
-    <!-- Bottom Navigation Bar -->
+    <!-- Navigation -->
     <nav class="bg-slate-900 border-t border-slate-800 text-slate-400 z-30 flex-none pb-safe">
         <div class="max-w-md mx-auto flex justify-around p-1.5">
             <button onclick="switchTab('pos')" id="nav-btn-pos" class="flex-1 py-1.5 flex flex-col items-center gap-0.5 text-amber-400 font-black">
@@ -355,7 +342,7 @@
         </div>
     </nav>
 
-    <!-- MODALS -->
+    <!-- Modals -->
     <div id="modal-topping" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
         <div class="bg-white rounded-t-3xl sm:rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-4">
             <div class="flex justify-between items-center border-b pb-2">
@@ -387,9 +374,7 @@
                 <div class="flex justify-between"><span>お釣り:</span><span id="receipt-change" class="font-bold text-emerald-600">¥0</span></div>
             </div>
 
-            <button onclick="closeReceiptModal()" class="w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl shadow-md active-scale">
-                次の注文へ
-            </button>
+            <button onclick="closeReceiptModal()" class="w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl shadow-md active-scale">次の注文へ</button>
         </div>
     </div>
 
@@ -421,56 +406,47 @@
             <div class="space-y-1.5 text-xs">
                 <div class="font-bold text-slate-700">実高カウント（枚数入力）</div>
                 <div class="grid grid-cols-2 gap-2">
-                    <div class="flex items-center justify-between bg-slate-50 p-1.5 rounded-lg border">
-                        <span>10,000円札</span>
-                        <input type="number" id="cnt-10000" min="0" value="0" class="w-14 text-right border rounded font-bold" oninput="recalcClosing()">
-                    </div>
-                    <div class="flex items-center justify-between bg-slate-50 p-1.5 rounded-lg border">
-                        <span>5,000円札</span>
-                        <input type="number" id="cnt-5000" min="0" value="0" class="w-14 text-right border rounded font-bold" oninput="recalcClosing()">
-                    </div>
-                    <div class="flex items-center justify-between bg-slate-50 p-1.5 rounded-lg border">
-                        <span>1,000円札</span>
-                        <input type="number" id="cnt-1000" min="0" value="0" class="w-14 text-right border rounded font-bold" oninput="recalcClosing()">
-                    </div>
-                    <div class="flex items-center justify-between bg-slate-50 p-1.5 rounded-lg border">
-                        <span>500円玉</span>
-                        <input type="number" id="cnt-500" min="0" value="0" class="w-14 text-right border rounded font-bold" oninput="recalcClosing()">
-                    </div>
-                    <div class="flex items-center justify-between bg-slate-50 p-1.5 rounded-lg border">
-                        <span>100円玉</span>
-                        <input type="number" id="cnt-100" min="0" value="0" class="w-14 text-right border rounded font-bold" oninput="recalcClosing()">
-                    </div>
-                    <div class="flex items-center justify-between bg-slate-50 p-1.5 rounded-lg border">
-                        <span>50円玉</span>
-                        <input type="number" id="cnt-50" min="0" value="0" class="w-14 text-right border rounded font-bold" oninput="recalcClosing()">
-                    </div>
-                    <div class="flex items-center justify-between bg-slate-50 p-1.5 rounded-lg border">
-                        <span>10円玉</span>
-                        <input type="number" id="cnt-10" min="0" value="0" class="w-14 text-right border rounded font-bold" oninput="recalcClosing()">
-                    </div>
+                    <div class="flex items-center justify-between bg-slate-50 p-1.5 rounded-lg border"><span>10,000円札</span><input type="number" id="cnt-10000" min="0" value="0" class="w-14 text-right border rounded font-bold" oninput="recalcClosing()"></div>
+                    <div class="flex items-center justify-between bg-slate-50 p-1.5 rounded-lg border"><span>5,000円札</span><input type="number" id="cnt-5000" min="0" value="0" class="w-14 text-right border rounded font-bold" oninput="recalcClosing()"></div>
+                    <div class="flex items-center justify-between bg-slate-50 p-1.5 rounded-lg border"><span>1,000円札</span><input type="number" id="cnt-1000" min="0" value="0" class="w-14 text-right border rounded font-bold" oninput="recalcClosing()"></div>
+                    <div class="flex items-center justify-between bg-slate-50 p-1.5 rounded-lg border"><span>500円玉</span><input type="number" id="cnt-500" min="0" value="0" class="w-14 text-right border rounded font-bold" oninput="recalcClosing()"></div>
+                    <div class="flex items-center justify-between bg-slate-50 p-1.5 rounded-lg border"><span>100円玉</span><input type="number" id="cnt-100" min="0" value="0" class="w-14 text-right border rounded font-bold" oninput="recalcClosing()"></div>
+                    <div class="flex items-center justify-between bg-slate-50 p-1.5 rounded-lg border"><span>50円玉</span><input type="number" id="cnt-50" min="0" value="0" class="w-14 text-right border rounded font-bold" oninput="recalcClosing()"></div>
+                    <div class="flex items-center justify-between bg-slate-50 p-1.5 rounded-lg border"><span>10円玉</span><input type="number" id="cnt-10" min="0" value="0" class="w-14 text-right border rounded font-bold" oninput="recalcClosing()"></div>
                 </div>
             </div>
 
             <div class="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-xs space-y-1">
-                <div class="flex justify-between font-bold">
-                    <span>実高合計:</span>
-                    <span id="closing-actual-total" class="font-black text-slate-800">¥0</span>
-                </div>
-                <div class="flex justify-between font-black text-sm">
-                    <span>過不足:</span>
-                    <span id="closing-diff" class="text-emerald-600">¥0 (適正)</span>
-                </div>
+                <div class="flex justify-between font-bold"><span>実高合計:</span><span id="closing-actual-total" class="font-black text-slate-800">¥0</span></div>
+                <div class="flex justify-between font-black text-sm"><span>過不足:</span><span id="closing-diff" class="text-emerald-600">¥0 (適正)</span></div>
             </div>
 
-            <button onclick="confirmClosing()" class="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-black rounded-xl shadow-md active-scale">
-                本日のレジ締めを確定する
-            </button>
+            <button onclick="confirmClosing()" class="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-black rounded-xl shadow-md active-scale">本日のレジ締めを確定する</button>
         </div>
     </div>
 
-    <!-- JAVASCRIPT LOGIC -->
+    <!-- JAVASCRIPT & FIREBASE REALTIME SETUP -->
     <script>
+        const firebaseConfig = {apiKey: "AIzaSyAgj6ApWHAq3j1UoaMBs6OEOU9Io7oP-Xw",
+                                authDomain: "regigigas-pos.firebaseapp.com",
+                                projectId: "regigigas-pos",
+                                storageBucket: "regigigas-pos.firebasestorage.app",
+                                messagingSenderId: "309602341447",
+                                appId: "1:309602341447:web:33d1ed0e25a2e241bdd762"};
+
+        // Initialize Firebase
+        let db = null;
+        let isFirebaseActive = false;
+        try {
+            if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
+                firebase.initializeApp(firebaseConfig);
+                db = firebase.database();
+                isFirebaseActive = true;
+            }
+        } catch(e) {
+            console.warn("Firebase Init Error:", e);
+        }
+
         const INITIAL_PRODUCTS = [
             { id: 'donut-plain', name: 'プレーンドーナツ', price: 200, category: 'ドーナツ', icon: '🍩', isDonut: true },
             { id: 'donut-choco', name: 'チョコドーナツ', price: 250, category: 'ドーナツ', icon: '🍫', isDonut: true },
@@ -480,22 +456,15 @@
             { id: 'test-64', name: '64思考力検査', price: 300, category: 'テスト', icon: '📑', isDonut: false }
         ];
 
-        const TOPPING_OPTIONS = [
-            'トッピングなし',
-            'グレーズ',
-            'きなこ',
-            'ココア',
-            'キャラメル',
-            'カラースプレー'
-        ];
+        const TOPPING_OPTIONS = ['トッピングなし', 'グレーズ', 'きなこ', 'ココア', 'キャラメル', 'カラースプレー'];
 
         let activeDay = localStorage.getItem('regigigas_active_day') || 'test';
         let products = INITIAL_PRODUCTS;
-        let allOrders = JSON.parse(localStorage.getItem('regigigas_all_orders')) || { test: [], 1: [], 2: [], 3: [] };
+        let allOrders = { test: [], 1: [], 2: [], 3: [] };
         let cart = [];
         let selectedCategory = 'ALL';
-        let activeDonutForTopping = null;
         let salesChart = null;
+        let activeTab = 'pos';
 
         function playSound(type = 'click') {
             try {
@@ -527,6 +496,25 @@
             renderCart();
             runQuickCalc();
 
+            if (isFirebaseActive) {
+                document.getElementById('sync-status').innerText = '🔥 Firebase リアルタイム連動';
+                // Listen to Realtime Database
+                db.ref('orders').on('value', (snapshot) => {
+                    const val = snapshot.val();
+                    if (val) {
+                        allOrders = val;
+                    } else {
+                        allOrders = { test: [], 1: [], 2: [], 3: [] };
+                    }
+                    refreshActiveTabViews();
+                });
+            } else {
+                document.getElementById('sync-status').innerText = '💾 ローカル保存モード';
+                document.getElementById('sync-status').className = 'text-[9px] bg-slate-500/20 text-slate-300 border border-slate-500/40 px-1.5 rounded font-mono';
+                allOrders = JSON.parse(localStorage.getItem('regigigas_all_orders')) || { test: [], 1: [], 2: [], 3: [] };
+                refreshActiveTabViews();
+            }
+
             setInterval(() => {
                 const now = new Date().toLocaleTimeString('ja-JP');
                 const clock1 = document.getElementById('header-clock');
@@ -535,6 +523,21 @@
                 if (clock2) clock2.innerText = now;
             }, 1000);
         });
+
+        function saveOrders() {
+            if (isFirebaseActive) {
+                db.ref('orders').set(allOrders);
+            } else {
+                localStorage.setItem('regigigas_all_orders', JSON.stringify(allOrders));
+                refreshActiveTabViews();
+            }
+        }
+
+        function refreshActiveTabViews() {
+            if (activeTab === 'kitchen') renderKitchenOrders();
+            if (activeTab === 'display') renderCallBoard();
+            if (activeTab === 'analytics') renderAnalytics();
+        }
 
         function updateDayLabel() {
             const labelStr = activeDay === 'test' ? '🧪 テスト日程 営業中' : `${activeDay}日目 営業中`;
@@ -553,6 +556,7 @@
 
         function switchTab(tabId) {
             playSound('click');
+            activeTab = tabId;
             document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'));
             document.getElementById(`tab-${tabId}`).classList.remove('hidden');
 
@@ -562,9 +566,7 @@
             const activeNav = document.getElementById(`nav-btn-${tabId}`);
             if (activeNav) activeNav.className = "flex-1 py-1.5 flex flex-col items-center gap-0.5 text-amber-400 font-black";
 
-            if (tabId === 'kitchen') renderKitchenOrders();
-            if (tabId === 'display') renderCallBoard();
-            if (tabId === 'analytics') renderAnalytics();
+            refreshActiveTabViews();
         }
 
         function filterCat(cat) {
@@ -602,12 +604,8 @@
 
         function handleProductTap(prod) {
             playSound('click');
-            if (prod.isDonut) {
-                activeDonutForTopping = prod;
-                openToppingModal(prod);
-            } else {
-                addToCart(prod, null);
-            }
+            if (prod.isDonut) openToppingModal(prod);
+            else addToCart(prod, null);
         }
 
         function openToppingModal(prod) {
@@ -625,30 +623,17 @@
                 };
                 grid.appendChild(btn);
             });
-
             document.getElementById('modal-topping').classList.remove('hidden');
         }
 
-        function closeToppingModal() {
-            document.getElementById('modal-topping').classList.add('hidden');
-        }
+        function closeToppingModal() { document.getElementById('modal-topping').classList.add('hidden'); }
 
         function addToCart(prod, topping) {
             const displayName = topping ? `${prod.name} (${topping})` : prod.name;
             const existing = cart.find(i => i.displayName === displayName);
-
-            if (existing) {
-                existing.qty++;
-            } else {
-                cart.push({
-                    id: prod.id,
-                    baseName: prod.name,
-                    displayName: displayName,
-                    price: prod.price,
-                    topping: topping,
-                    isDonut: prod.isDonut,
-                    qty: 1
-                });
+            if (existing) existing.qty++;
+            else {
+                cart.push({ id: prod.id, baseName: prod.name, displayName, price: prod.price, topping, isDonut: prod.isDonut, qty: 1 });
             }
             renderCart();
         }
@@ -657,9 +642,7 @@
             const item = cart.find(i => i.displayName === displayName);
             if (!item) return;
             item.qty += delta;
-            if (item.qty <= 0) {
-                cart = cart.filter(i => i.displayName !== displayName);
-            }
+            if (item.qty <= 0) cart = cart.filter(i => i.displayName !== displayName);
             renderCart();
         }
 
@@ -676,14 +659,12 @@
             const setPairs = Math.min(donutCount, coffeeCount);
             const setDiscount = setPairs * 50;
             const total = Math.max(0, subtotal - setDiscount);
-
             return { subtotal, setDiscount, total };
         }
 
         function renderCart() {
             const container = document.getElementById('cart-items');
             const totalQty = cart.reduce((sum, i) => sum + i.qty, 0);
-
             document.getElementById('cart-item-count').innerText = `${totalQty}点`;
             document.getElementById('mobile-cart-badge').innerText = totalQty;
 
@@ -727,9 +708,7 @@
             if (setDiscount > 0) {
                 setRow.classList.remove('hidden');
                 document.getElementById('summary-set-discount').innerText = `-¥${setDiscount}`;
-            } else {
-                setRow.classList.add('hidden');
-            }
+            } else setRow.classList.add('hidden');
 
             calculateChange();
         }
@@ -743,8 +722,7 @@
         function addCash(amt) {
             playSound('click');
             const input = document.getElementById('received-amount');
-            const curr = parseInt(input.value) || 0;
-            input.value = curr + amt;
+            input.value = (parseInt(input.value) || 0) + amt;
             calculateChange();
         }
 
@@ -798,8 +776,8 @@
 
             if (!allOrders[activeDay]) allOrders[activeDay] = [];
             allOrders[activeDay].push(newOrder);
-            localStorage.setItem('regigigas_all_orders', JSON.stringify(allOrders));
 
+            saveOrders();
             playSound('pay');
 
             document.getElementById('receipt-ticket-num').innerText = ticketNum;
@@ -811,14 +789,11 @@
             toggleMobileCart(false);
         }
 
-        function closeReceiptModal() {
-            document.getElementById('modal-receipt').classList.add('hidden');
-        }
+        function closeReceiptModal() { document.getElementById('modal-receipt').classList.add('hidden'); }
 
         function renderKitchenOrders() {
             const container = document.getElementById('kitchen-orders-list');
             container.innerHTML = '';
-
             const currentDayOrders = allOrders[activeDay] || [];
             const activeOrders = currentDayOrders.filter(o => o.status !== 'DONE');
             document.getElementById('kitchen-active-count').innerText = `${activeOrders.length}件進行中`;
@@ -826,13 +801,7 @@
             activeOrders.forEach(ord => {
                 const card = document.createElement('div');
                 card.className = "bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-2 flex flex-col justify-between";
-
-                const itemsHtml = ord.items.map(i => `
-                    <div class="flex justify-between text-xs font-bold text-slate-800">
-                        <span>${i.displayName}</span>
-                        <span class="text-amber-600">× ${i.qty}</span>
-                    </div>
-                `).join('');
+                const itemsHtml = ord.items.map(i => `<div class="flex justify-between text-xs font-bold text-slate-800"><span>${i.displayName}</span><span class="text-amber-600">× ${i.qty}</span></div>`).join('');
 
                 card.innerHTML = `
                     <div>
@@ -861,16 +830,13 @@
             if (ord.status === 'PREPARING') ord.status = 'READY';
             else if (ord.status === 'READY') ord.status = 'DONE';
 
-            localStorage.setItem('regigigas_all_orders', JSON.stringify(allOrders));
-            renderKitchenOrders();
+            saveOrders();
         }
 
         function renderCallBoard() {
             const readyGrid = document.getElementById('ready-numbers-grid');
             const prepGrid = document.getElementById('prep-numbers-grid');
-
-            readyGrid.innerHTML = '';
-            prepGrid.innerHTML = '';
+            readyGrid.innerHTML = ''; prepGrid.innerHTML = '';
 
             const currentDayOrders = allOrders[activeDay] || [];
             const ready = currentDayOrders.filter(o => o.status === 'READY');
@@ -907,9 +873,7 @@
             const itemMap = {};
             currentDayOrders.forEach(o => {
                 o.items.forEach(i => {
-                    if (!itemMap[i.displayName]) {
-                        itemMap[i.displayName] = { name: i.displayName, price: i.price, qty: 0, total: 0 };
-                    }
+                    if (!itemMap[i.displayName]) itemMap[i.displayName] = { name: i.displayName, price: i.price, qty: 0, total: 0 };
                     itemMap[i.displayName].qty += i.qty;
                     itemMap[i.displayName].total += i.price * i.qty;
                 });
@@ -943,43 +907,29 @@
                 type: 'bar',
                 data: {
                     labels: ['10時','11時','12時','13時','14時','15時', '16時','17時','18時','19時'],
-                    datasets: [{
-                        label: '売上 (円)',
-                        data: hours,
-                        backgroundColor: '#f59e0b',
-                        borderRadius: 6
-                    }]
+                    datasets: [{ label: '売上 (円)', data: hours, backgroundColor: '#f59e0b', borderRadius: 6 }]
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } }
-                }
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
             });
         }
 
         function openClosingModal() {
             const currentDayOrders = allOrders[activeDay] || [];
             const sales = currentDayOrders.reduce((sum, o) => sum + o.total, 0);
-
             const titleStr = activeDay === 'test' ? '🧪 テスト日程の精算・レジ締め' : `${activeDay}日目の精算・レジ締め`;
             document.getElementById('closing-day-title').innerText = titleStr;
             document.getElementById('closing-cash-sales').innerText = `¥${sales}`;
-
             recalcClosing();
             document.getElementById('modal-closing').classList.remove('hidden');
         }
 
-        function closeClosingModal() {
-            document.getElementById('modal-closing').classList.add('hidden');
-        }
+        function closeClosingModal() { document.getElementById('modal-closing').classList.add('hidden'); }
 
         function recalcClosing() {
             const currentDayOrders = allOrders[activeDay] || [];
             const sales = currentDayOrders.reduce((sum, o) => sum + o.total, 0);
             const opening = parseInt(document.getElementById('opening-cash').value) || 0;
             const theoretical = opening + sales;
-
             document.getElementById('closing-theoretical').innerText = `¥${theoretical.toLocaleString()}`;
 
             const actual = 
@@ -992,20 +942,12 @@
                 (parseInt(document.getElementById('cnt-10').value)||0)*10;
 
             document.getElementById('closing-actual-total').innerText = `¥${actual.toLocaleString()}`;
-
             const diff = actual - theoretical;
             const diffEl = document.getElementById('closing-diff');
 
-            if (diff === 0) {
-                diffEl.innerText = '¥0 (過不足なし)';
-                diffEl.className = 'text-emerald-600 font-black';
-            } else if (diff > 0) {
-                diffEl.innerText = `+¥${diff.toLocaleString()} (過剰)`;
-                diffEl.className = 'text-amber-600 font-black';
-            } else {
-                diffEl.innerText = `-¥${Math.abs(diff).toLocaleString()} (不足)`;
-                diffEl.className = 'text-rose-600 font-black';
-            }
+            if (diff === 0) { diffEl.innerText = '¥0 (過不足なし)'; diffEl.className = 'text-emerald-600 font-black'; }
+            else if (diff > 0) { diffEl.innerText = `+¥${diff.toLocaleString()} (過剰)`; diffEl.className = 'text-amber-600 font-black'; }
+            else { diffEl.innerText = `-¥${Math.abs(diff).toLocaleString()} (不足)`; diffEl.className = 'text-rose-600 font-black'; }
         }
 
         function confirmClosing() {
@@ -1042,11 +984,10 @@
         }
 
         function resetAllData() {
-            if (confirm('テスト日程およびすべての営業日の売上データを完全に初期化しますか？')) {
-                localStorage.removeItem('regigigas_all_orders');
+            if (confirm('クラウド上の全日程の売上データを初期化しますか？')) {
                 allOrders = { test: [], 1: [], 2: [], 3: [] };
+                saveOrders();
                 clearCart();
-                renderAnalytics();
                 alert('全データを初期化しました。');
             }
         }
